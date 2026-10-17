@@ -82,8 +82,11 @@ class StrikeLedger:
         first_failure = prev_code is None
         same_unchanged = prev_code == code and not new_attempt
         first_at = float(entry.get("first_at", now))
-        age = now - first_at
+        # a clock that steps backwards (NTP, a sleep-resume jump) must not produce a
+        # negative age that permanently silences escalation
+        age = max(0.0, now - first_at)
 
+        entry.setdefault("seen_at", now)
         if same_unchanged:
             # static history: re-reading the same code is not another failure.
             # The only thing that may speak after that is an unresolved age.
@@ -93,7 +96,8 @@ class StrikeLedger:
             return Decision(ACTION_WARN, "persisting", streak or 1)
 
         if first_failure:
-            entry.update(code=code, runs=runs, streak=1, first_at=now, raised_at=now, escalated=False)
+            entry.update(code=code, runs=runs, streak=1, first_at=now, raised_at=now,
+                         escalated=False, seen_at=now)
             return Decision(ACTION_WARN, "first-failure", 1)
 
         streak += 1

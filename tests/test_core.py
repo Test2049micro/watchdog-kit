@@ -61,12 +61,31 @@ class DiffTest(unittest.TestCase):
         self.assertEqual(diff.new, [])
         self.assertEqual(diff.exit_code, 0)
 
-    def test_disappearing_subject_reports_recovery_once(self):
+    def test_total_silence_is_a_scan_error_not_a_mass_recovery(self):
+        # zero items against a non-empty baseline is almost always a broken scan
+        # (typo'd --dir), and reporting "everything recovered" is the one message
+        # that would be worse than the alert we suppressed
         self.round(Item("a", "STALE"))
         diff = self.round(now=T0 + 60)
+        self.assertTrue(diff.scan_empty)
+        self.assertEqual(diff.exit_code, 3)
+        self.assertEqual(diff.recovered, [])
+
+    def test_partial_disappearance_still_reports_recovery(self):
+        # a round that sees *something* is a real observation, so subjects that
+        # vanished from it are genuinely gone and get reported once
+        self.round(Item("a", "STALE"), Item("b", "STALE"))
+        diff = self.round(Item("a", "OK"), now=T0 + 60)
+        recovered = {i.id for i in diff.recovered}
+        self.assertEqual(recovered, {"a", "b"}, "a is healthy, b is no longer observed")
+        self.assertEqual({i.id: i.detail for i in diff.recovered}["b"], "no longer observed")
+
+    def test_vanishing_subject_is_reported_once(self):
+        self.round(Item("a", "STALE"), Item("b", "DEGRADED"))
+        diff = self.round(Item("b", "DEGRADED"), now=T0 + 60)
         self.assertEqual([i.id for i in diff.recovered], ["a"])
-        gone_again = self.round(now=T0 + 120)
-        self.assertEqual(gone_again.recovered, [])
+        again = self.round(Item("b", "DEGRADED"), now=T0 + 120)
+        self.assertEqual(again.recovered, [])
 
     def test_escalation_clock_restarts_on_a_different_failure(self):
         self.round(Item("a", "STALE"))
@@ -81,7 +100,7 @@ class StateTest(unittest.TestCase):
 
     def test_missing_file_is_first_run_not_corrupt(self):
         snapshot = load(self.path)
-        self.assertTrue(snapshot.is_first_run)
+        self.assertTrue(snapshot.first_read)
 
     def test_roundtrip_keeps_plugin_counters(self):
         snapshot = load(self.path)

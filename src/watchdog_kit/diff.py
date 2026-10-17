@@ -45,6 +45,7 @@ class Item:
 
 @dataclass
 class Diff:
+    scan_empty: bool = False
     new: list[Item] = field(default_factory=list)
     changed: list[Item] = field(default_factory=list)
     recovered: list[Item] = field(default_factory=list)
@@ -62,17 +63,25 @@ class Diff:
 
     @property
     def exit_code(self) -> int:
+        if self.scan_empty:
+            return 3
         if self.actionable:
             return 1
         return 2 if self.recovered else 0
 
     def summary(self) -> str:
+        if self.scan_empty:
+            return "SCAN EMPTY: zero items observed against a non-empty baseline"
         return (
             f"NEW {len(self.new)} CHANGED {len(self.changed)} RECOVER {len(self.recovered)} "
             f"PERSIST {len(self.persisted)} ESCALATE {len(self.escalated)}"
         )
 
     def to_dict(self) -> dict:
+        if self.scan_empty:
+            return {"verdict": "scan-empty", "exit_code": 3,
+                    "hint": "this round observed zero items while the state file holds "
+                            "previous ones; check --dir/--spec before believing a recovery"}
         return {
             "new": [self._row(i) for i in self.new],
             "changed": [self._row(i) for i in self.changed],
@@ -103,6 +112,12 @@ def classify(
     turn every second poll into a false "first sighting".
     """
     now = time.time() if now is None else now
+    if not items and snapshot.seen:
+        # a round that observed nothing is a broken scan (typo'd --dir, unreadable
+        # source), not 400 jobs recovering at once. Reporting the latter would let
+        # the worst possible message -- "everything is fine now" -- be produced by
+        # the most common failure: reading the wrong place
+        return Diff(scan_empty=True)
     diff = Diff()
     current = {item.id: item for item in items}
 

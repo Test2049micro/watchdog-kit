@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sqlite3
 import sys
 import time
 from collections.abc import Sequence
@@ -88,6 +89,9 @@ def cmd_launchd(args: argparse.Namespace) -> int:
         status_reader=args._status_reader or launchd.read_status,
     )
     diff = classify(items, snapshot, now=args._now, escalate_after=args.escalate_after)
+    if diff.scan_empty:
+        print(f"error: {diff.summary()}", file=sys.stderr)
+        return 3
     code = _report(diff, snapshot, args, items)
     save(strikes_snapshot, now=args._now)
     return code
@@ -100,6 +104,9 @@ def cmd_runs(args: argparse.Namespace) -> int:
     items = sqlruns.scan(spec, now=args._now, lookback_hours=args.lookback_hours)
     snapshot = load(_state_path("runs", args.state))
     diff = classify(items, snapshot, now=args._now, escalate_after=args.escalate_after)
+    if diff.scan_empty:
+        print(f"error: {diff.summary()}", file=sys.stderr)
+        return 3
     return _report(diff, snapshot, args, items)
 
 
@@ -119,6 +126,9 @@ def cmd_diff(args: argparse.Namespace) -> int:
         items.append(Item(id=str(row["id"]), state=str(row["state"]), detail=str(row.get("detail", ""))))
     snapshot = load(_state_path(args.name, args.state))
     diff = classify(items, snapshot, now=args._now, escalate_after=args.escalate_after)
+    if diff.scan_empty:
+        print(f"error: {diff.summary()}", file=sys.stderr)
+        return 3
     return _report(diff, snapshot, args, items)
 
 
@@ -162,15 +172,21 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None, *, now: float | None = None, status_reader=None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    args._now = now if now is not None else (args.now or time.time())
+    # `or` would swallow --now 0 (a legitimate epoch clock for replays)
+    args._now = now if now is not None else (args.now if args.now is not None else time.time())
     args._status_reader = status_reader
     try:
         return args.func(args)
     except StateCorrupt as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 3
-    except (FileNotFoundError, ValueError) as exc:
+    except (FileNotFoundError, ValueError, OSError, sqlite3.Error) as exc:
         print(f"error: {exc}", file=sys.stderr)
+        return 3
+    except (TypeError, AttributeError, json.JSONDecodeError) as exc:
+        # a malformed state file or spec is a scan error; exit 1 would read as
+        # "there are new problems", and 2 as "everything recovered"
+        print(f"error: unreadable input: {exc}", file=sys.stderr)
         return 3
 
 

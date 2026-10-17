@@ -83,14 +83,19 @@ def parse_launchctl_print(text: str) -> Status:
 
 def read_status(label: str, uid: int | None = None) -> Status:
     uid = os.getuid() if uid is None else uid
-    for domain in (f"gui/{uid}", "system"):
-        result = subprocess.run(
-            ["launchctl", "print", f"{domain}/{label}"],
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode == 0:
-            return parse_launchctl_print(result.stdout)
+    try:
+        for domain in (f"gui/{uid}", "system"):
+            result = subprocess.run(
+                ["launchctl", "print", f"{domain}/{label}"],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0:
+                return parse_launchctl_print(result.stdout)
+    except FileNotFoundError:
+        # the plugin is macOS-only; on Linux it must say so per job rather than
+        # crash the run, so the portable commands in this package still work
+        return Status(error="launchctl-unavailable")
     return Status(error="not-loaded")
 
 
@@ -100,7 +105,11 @@ def _disabled_labels(uid: int) -> set[str]:
     ``launchctl list`` omits disabled jobs entirely, so absence from it proves
     nothing; ``print-disabled`` is the only list that names them.
     """
-    result = subprocess.run(["launchctl", "print-disabled", f"gui/{uid}"], capture_output=True, text=True)
+    try:
+        result = subprocess.run(["launchctl", "print-disabled", f"gui/{uid}"],
+                                capture_output=True, text=True)
+    except FileNotFoundError:
+        return set()
     if result.returncode != 0:
         return set()
     return set(re.findall(r'"([^"]+)"\s*=\s*1', result.stdout))

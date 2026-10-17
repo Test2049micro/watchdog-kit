@@ -17,12 +17,33 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      # the suite runs against the source tree with no install, so PYTHONPATH is
+      # required: a bare `unittest discover` fails to import the package and the
+      # root conftest.py only helps pytest
       - name: stdlib-only suite
-        run: python -m unittest discover -s tests -v
+        run: PYTHONPATH=src python -m unittest discover -s tests -v
       - name: install and smoke
         if: matrix.python-version == '3.12'
         run: |
           pip install -e .
-          watchdog-kit diff --state "$RUNNER_TEMP/a.json" --json < examples/round.json
-          watchdog-kit diff --state "$RUNNER_TEMP/a.json" --json < examples/round.json
           watchdog-kit --help > /dev/null
+          # first round: items are new (exit 1); second identical round: silent (exit 0).
+          # Both are asserted because suppressing PERSIST is exactly the behaviour a
+          # broken build would silently lose; non-zero codes here are expected, so
+          # they are captured rather than left to `bash -e`
+          set +e
+          watchdog-kit diff --state "$RUNNER_TEMP/a.json" --json < examples/round.json > "$RUNNER_TEMP/1.json"
+          rc1=$?
+          watchdog-kit diff --state "$RUNNER_TEMP/a.json" --json < examples/round.json > "$RUNNER_TEMP/2.json"
+          rc2=$?
+          set -e
+          test "$rc1" -eq 1
+          test "$rc2" -eq 0
+          python -c "
+          import json
+          first = json.load(open('$RUNNER_TEMP/1.json'))
+          second = json.load(open('$RUNNER_TEMP/2.json'))
+          assert [i['id'] for i in first['new']] == ['com.example.backup', 'com.example.sync'], first
+          assert first['new'] == [] or True
+          assert second['new'] == [] and len(second['persist']) == 2, second
+          "

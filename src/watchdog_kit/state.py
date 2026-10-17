@@ -27,16 +27,17 @@ DEFAULT_CAP = 4000
 
 @dataclass
 class Snapshot:
+    """Persisted view of one plugin's state.
+
+    ``first_read`` distinguishes "no state file exists" from "the state file is
+    empty", which matters because a monitor that cannot tell them apart treats a
+    deleted state file as a clean slate and re-announces every old problem as new.
+    """
     path: Path
     seen: dict[str, dict] = field(default_factory=dict)
     ts: float | None = None
     version: int = STATE_VERSION
     first_read: bool = True
-
-    @property
-    def is_first_run(self) -> bool:
-        return self.first_read
-
 
 def load(path: str | Path) -> Snapshot:
     target = Path(path)
@@ -48,7 +49,11 @@ def load(path: str | Path) -> Snapshot:
         # unreadable state must not be mistaken for "nothing has ever been seen";
         # the caller decides, and the CLI reports it as a scan error
         raise StateCorrupt(target)
+    if not isinstance(data, dict):
+        raise StateCorrupt(target)
     seen = data.get("seen", {})
+    if not isinstance(seen, dict):
+        raise StateCorrupt(target)
     return Snapshot(
         path=target,
         seen={k: (v if isinstance(v, dict) else {"state": str(v)}) for k, v in seen.items()},

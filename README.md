@@ -94,16 +94,18 @@ contradicts the status column with external signals:
 The schema is not assumed — table, column names and thresholds come from a spec
 (`examples/specs/generic-runs.json`). Identifiers are quoted and rejected if they
 contain anything but `[A-Za-z0-9_]`, because a spec is user-editable config that
-is interpolated into SQL. The database is opened `mode=ro&immutable=1`: a monitor
-that can write to what it audits can break it.
+is interpolated into SQL. The database is opened `mode=ro`: a monitor that can
+write to what it audits can break it. `immutable=1` is deliberately **not** set --
+it tells SQLite the file never changes, which makes it skip the WAL, and a live
+agent database is a WAL database: the audit would read a stale snapshot or fail
+outright on exactly the runs worth auditing.
 
 ## Writing a plugin
 
 A plugin is a function returning `Item(id, state, detail)`. The state string is
 the equality key for the change layer, so `STALE` and `DEGRADED` are different
 news about the same subject, and `state` changing resets the escalation clock.
-`plugins/launchd.py` (175 lines) and `plugins/sqlruns.py` (170 lines) are the
-reference shapes: read a source, emit items, persist counters in the snapshot dict
+`plugins/launchd.py` and `plugins/sqlruns.py` are the reference shapes: read a source, emit items, persist counters in the snapshot dict
 the caller hands you.
 
 ## Where the overlap with bigger systems is, honestly
@@ -138,7 +140,9 @@ lines: the first round tells you what exists, later rounds tell you what moved.
 ## Limitations
 
 - `launchd` support is macOS-specific by nature (`launchctl print`, plist
-  semantics). The change layer, strike ledger and `runs` plugin are portable.
+  semantics). Without `launchctl` each job reports `WARN launchctl-unavailable`
+  instead of crashing, and the change layer, strike ledger and `runs` plugin are
+  portable.
 - Period inference from `StartCalendarInterval` is an approximation, biased toward
   **longer** cadences so a false positive is late rather than early.
 - `COMPLETED_THIN`'s `min_tokens` is a guess about a specific client's effort. It
@@ -150,7 +154,8 @@ lines: the first round tells you what exists, later rounds tell you what moved.
 ## Development
 
 ```bash
-python -m unittest discover -s tests -v     # zero dependencies
+PYTHONPATH=src python -m unittest discover -s tests -v   # zero dependencies
+pip install -e . && pytest -q                             # same suite via pytest
 ```
 
 ## 中文摘要

@@ -70,7 +70,10 @@ def connect(db: str) -> sqlite3.Connection:
     resolved = Path(db).expanduser().resolve()
     if not resolved.exists():
         raise FileNotFoundError(f"database not found: {resolved}")
-    connection = sqlite3.connect(f"file:{resolved}?mode=ro&immutable=1", uri=True)
+    # mode=ro only: immutable=1 tells sqlite the file never changes, which makes it
+    # ignore the WAL -- and a live agent database *is* a WAL database, so the audit
+    # would read a stale snapshot or fail with "no such table"
+    connection = sqlite3.connect(f"file:{resolved}?mode=ro", uri=True)
     connection.row_factory = sqlite3.Row
     return connection
 
@@ -143,7 +146,8 @@ def scan(
         connection.row_factory = sqlite3.Row
     items: list[Item] = []
     try:
-        available = {row[1] for row in connection.execute(f'PRAGMA table_info("{spec.table}")')}
+        safe_table = _quote(spec.table)
+        available = {row[1] for row in connection.execute(f"PRAGMA table_info({safe_table})")}
         for name in columns.values():
             if name not in available:
                 raise ValueError(f"spec names column {name!r}, not in table {spec.table!r}")
