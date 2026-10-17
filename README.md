@@ -49,6 +49,9 @@ fine".
 
 ```bash
 pipx install watchdog-kit
+
+# Not on PyPI yet (name verified free as of 2026-10-17). Until the first release:
+git clone https://github.com/Test2049micro/watchdog-kit && cd watchdog-kit && pipx install .
 ```
 
 Python 3.9+, no runtime dependencies, no daemon. Schedule it with launchd or cron
