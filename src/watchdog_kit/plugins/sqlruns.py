@@ -16,8 +16,9 @@ come from a spec file, so this works against any client that records runs in
 SQLite -- ``examples/runs-spec.json`` shows the shape, and
 ``examples/specs/`` carries one worked example per style.
 
-Opened read-only (``file:...?mode=ro&immutable=1``): a monitor that can write to
-the database it audits is a monitor that can break the thing it audits.
+Opened read-only (``file:...?mode=ro``): a monitor that can write to the database
+it audits is a monitor that can break the thing it audits. ``immutable=1`` is
+deliberately absent -- see :func:`connect`.
 """
 
 from __future__ import annotations
