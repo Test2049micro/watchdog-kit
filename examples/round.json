@@ -1,0 +1,4 @@
+[
+  {"id": "com.example.backup", "state": "STALE", "detail": "run count unchanged for 14400s"},
+  {"id": "com.example.sync", "state": "DEGRADED", "detail": "exit 78 on last attempt"}
+]

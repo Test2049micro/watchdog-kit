@@ -1,0 +1,28 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.9", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: stdlib-only suite
+        run: python -m unittest discover -s tests -v
+      - name: install and smoke
+        if: matrix.python-version == '3.12'
+        run: |
+          pip install -e .
+          watchdog-kit diff --state "$RUNNER_TEMP/a.json" --json < examples/round.json
+          watchdog-kit diff --state "$RUNNER_TEMP/a.json" --json < examples/round.json
+          watchdog-kit --help > /dev/null

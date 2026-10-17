@@ -1,0 +1,18 @@
+{
+  "db": "~/.local/share/example-client/runs.db",
+  "table": "runs",
+  "columns": {
+    "id": "run_id",
+    "status": "status",
+    "updated": "updated_at",
+    "output": "result_json",
+    "tokens": "spent_tokens"
+  },
+  "thresholds": {
+    "min_tokens": 500,
+    "running_stale_seconds": 1800
+  },
+  "completed_values": ["completed", "succeeded"],
+  "running_values": ["running", "in_progress"],
+  "time_unit": "epoch_seconds"
+}
