@@ -50,8 +50,8 @@ fine".
 ```bash
 pipx install watchdog-kit
 
-# Not on PyPI yet (name verified free as of 2026-10-17). Until the first release:
-git clone https://github.com/Test2049micro/watchdog-kit && cd watchdog-kit && pipx install .
+# or straight from the v0.1.0 release asset (no clone, no PyPI account needed):
+pipx install https://github.com/Test2049micro/watchdog-kit/releases/download/v0.1.0/watchdog_kit-0.1.0-py3-none-any.whl
 ```
 
 Python 3.9+, no runtime dependencies, no daemon. Schedule it with launchd or cron
