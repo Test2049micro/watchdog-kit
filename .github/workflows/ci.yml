@@ -22,6 +22,15 @@ jobs:
       # root conftest.py only helps pytest
       - name: stdlib-only suite
         run: PYTHONPATH=src python -m unittest discover -s tests -v
+      # a real sdist+wheel build, not just an editable install: this is what the
+      # release job uploads, and twine check is what PyPI's own form validator runs
+      - name: build and check distribution metadata
+        if: matrix.python-version == '3.12'
+        run: |
+          pip install build twine
+          python -m build
+          twine check dist/*
+
       - name: install and smoke
         if: matrix.python-version == '3.12'
         run: |
