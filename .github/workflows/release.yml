@@ -1,0 +1,36 @@
+name: release
+
+# Publishing is triggered by a version tag only, never by a push to main:
+# an ordinary commit must not be able to put a package on PyPI.
+on:
+  push:
+    tags: ["v[0-9]*"]
+
+jobs:
+  pypi:
+    runs-on: ubuntu-latest
+    # Create this Environment on the repo (Settings -> Environments -> "pypi"),
+    # then point PyPI's "Trusted Publisher" at it. No credential is ever stored
+    # here: the action exchanges the workflow's OIDC token for a short-lived one.
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: build
+        run: |
+          pip install build
+          python -m build
+      # checked before upload: a broken long_description is rejected by PyPI, and
+      # finding that out from the upload error is slower than checking locally here
+      - name: check metadata
+        run: |
+          pip install twine
+          twine check dist/*
+      - name: publish
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
