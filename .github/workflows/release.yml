@@ -31,6 +31,11 @@ jobs:
           pip install twine
           twine check dist/*
       - name: publish
-        uses: pypa/gh-action-pypi-publish@release/v1
+        # pinned to the commit that v1.14.2 points at, not to the moving
+        # release/v1 branch: this step receives short-lived credentials for your
+        # package index, so upstream should not be able to change under us.
+        # v1.14.2 is an annotated tag, so its tag object sha is NOT usable here;
+        # this is the dereferenced commit (currently also release/v1's head).
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33  # v1.14.2
         with:
           packages-dir: dist/
